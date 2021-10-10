@@ -8,8 +8,8 @@ wandb.init(project="CLIP-Graph-Model", entity="parkererickson")
 
 config = wandb.config
 config.epochs = 100
-config.batch_size = 16
-config.learning_rate = 0.01
+config.batch_size = 64
+config.learning_rate = 0.001
 
 ds = dataset.GraphCLIP(lidar_timestamp_path='./data/sample/lms_front.timestamps', 
                        image_timestamp_path='./data/sample/stereo.timestamps',
@@ -27,7 +27,7 @@ val_loader = DataLoader(val, batch_size=config.batch_size, shuffle=True)
 model = cgm.CLIPGraphModel(image_model="vit")
 model.to(device)
 
-#wandb.watch(model)
+wandb.watch(model)
 
 def train(model, loader, optimizer, epoch):
     for data in loader:
@@ -37,7 +37,7 @@ def train(model, loader, optimizer, epoch):
         loss.backward()
         optimizer.step()
     print('Epoch: {:02d}, Loss: {:.4f}'.format(epoch, loss.item()))
-    #wandb.log({'train_loss': loss.item()}, step=epoch)
+    wandb.log({'train_loss': loss.item()}, step=epoch)
 
 def valid(model, loader, epoch):
     model.eval()
@@ -46,7 +46,7 @@ def valid(model, loader, epoch):
             data.to(device)
             loss = model(data)
     print('Epoch: {:02d}, Validation Loss: {:.4f}'.format(epoch, loss.item()))
-    #wandb.log({'val_loss': loss.item()}, step=epoch)
+    wandb.log({'val_loss': loss.item()}, step=epoch)
     model.train()
 
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
