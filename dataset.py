@@ -1,18 +1,13 @@
 import torch
 from torch.utils.data import Dataset
 from torch_geometric.data import Data
-from torchvision.transforms.functional import center_crop
 from robotcar_dataset_sdk.python import build_pointcloud as bpc
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
-from torchvision.io import read_image
 from torchvision import transforms
 from tqdm import tqdm
 from PIL import Image
 import os
 from torch_cluster import knn_graph
-
-
 
 class GraphCLIP(Dataset):
     def __init__(self,
@@ -23,6 +18,7 @@ class GraphCLIP(Dataset):
                  image_path = './data/sample/stereo',
                  ins_path='./data/sample/gps/ins.csv',
                  extrinsics_path='./robotcar_dataset_sdk/extrinsics',
+                 data_name="sample",
                  use_cache=True):
         self.lidar_path = lidar_path
         self.lidar_timestamp_path = lidar_timestamp_path
@@ -30,23 +26,27 @@ class GraphCLIP(Dataset):
         self.image_path = image_path
         self.ins_path = ins_path
         self.extrinsics_path = extrinsics_path
+        self.data_name = data_name
         if os.path.isdir(processed_dir):
-            if os.path.isfile(processed_dir+'data.pt') and use_cache:
-                self.data = torch.load(processed_dir+'data.pt')
+            if os.path.isfile(processed_dir+data_name+'_data.pt') and use_cache:
+                self.data = torch.load(processed_dir+data_name+'_data.pt')
             else:
                 self.data = self.process()
-                torch.save(self.data, processed_dir+'data.pt')
+                torch.save(self.data, processed_dir+data_name+'_data.pt')
         else:
             os.mkdir(processed_dir)
             self.data = self.process()
-            torch.save(self.data, processed_dir+'data.pt')
+            torch.save(self.data, processed_dir+data_name+'_data.pt')
 
     def __len__(self):
         return len(self.data)
 
+    def __getitem__(self, idx):
+        return self.data[idx]
+
     @property
     def processed_file_names(self):
-        return ['data.pt']
+        return [self.data_name+'_data.pt']
 
     def _getTimestamps(self, timestep_path):
         times = []
@@ -55,11 +55,9 @@ class GraphCLIP(Dataset):
             times.append(int(line.split()[0]))
         return times
 
-
     def _build_pc(self, pc_filepath, ins_filepath, extrinsics_path, start_time, end_time):
         pc = bpc.build_pointcloud(pc_filepath, ins_filepath, extrinsics_path, start_time, end_time, origin_time=start_time)[0][:3].T
         return pc
-
 
     def process(self):
         data_list = []
@@ -94,6 +92,3 @@ class GraphCLIP(Dataset):
                 data_list.append(data)
 
         return data_list
-
-    def __getitem__(self, idx):
-        return self.data[idx]
