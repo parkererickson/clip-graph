@@ -5,23 +5,26 @@ import CLIPGraphModel as cgm
 import torch
 import wandb
 
-#wandb.init(project="CLIP-Graph-Model", entity="parkererickson")
+wandb.init(project="CLIP-Graph-Model", entity="parkererickson")
 
 config = wandb.config
-config.epochs = 100
-config.batch_size = 24
+config.epochs = 400
+config.batch_size = 64 #96
 config.learning_rate = 5e-4
-config.image_model="resnet"
-config.graph_model="gat"
-config.embedding_dim=128
-config.graph_pool="max"
-config.linear_proj_dropout=0.1
-config.pretrained_image_model=False
+config.image_model = "resnet"
+config.graph_model = "gcn"
+config.embedding_dim = 256
+config.graph_pool = "mean"
+config.graph_hidden_dim = 512
+config.graph_out_dim = 256
+config.linear_proj_dropout = 0.1
+config.pretrained_image_model = False
 config.lr_patience = 5
 config.T_0 = 10
+config.data_sample = "2014-05-14-13-59-05"
+#config.data_sample = "sample"
 
-#data_sample = "sample"
-data_sample = "2014-05-14-13-59-05"
+data_sample = config.data_sample
 
 ds = dataset.GraphCLIP(lidar_timestamp_path='./data/'+data_sample+'/lms_front.timestamps', 
                        image_timestamp_path='./data/'+data_sample+'/stereo.timestamps',
@@ -41,12 +44,14 @@ model = cgm.CLIPGraphModel(image_model=config.image_model,
                            graph_model=config.graph_model,
                            embedding_dim=config.embedding_dim,
                            graph_pool=config.graph_pool,
+                           graph_hidden_dim=config.graph_hidden_dim,
+                           graph_out_dim=config.graph_out_dim,
                            linear_proj_dropout=config.linear_proj_dropout,
                            pretrained_image_model=config.pretrained_image_model)
 
 model.to(device)
 
-#wandb.watch(model)
+wandb.watch(model)
 
 def train(model, loader, optimizer, epoch):
     for data in loader:
@@ -55,8 +60,7 @@ def train(model, loader, optimizer, epoch):
         loss = model(data)
         loss.backward()
         optimizer.step()
-    print('Epoch: {:02d}, Loss: {:.4f}'.format(epoch, loss.item()))
-    #wandb.log({'train_loss': loss.item()}, step=epoch)
+    return loss.item()
 
 def valid(model, loader, epoch):
     model.eval()
@@ -64,8 +68,6 @@ def valid(model, loader, epoch):
         for data in loader:
             data.to(device)
             loss = model(data)
-    print('Epoch: {:02d}, Validation Loss: {:.4f}'.format(epoch, loss.item()))
-    #wandb.log({'val_loss': loss.item()}, step=epoch)
     model.train()
     return loss.item()
 
@@ -76,7 +78,12 @@ def get_lr(optimizer):
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=config.T_0)
 for epoch in range(config.epochs):
-    train(model, train_loader, optimizer, epoch)
+    train_loss = train(model, train_loader, optimizer, epoch)
     valid_loss = valid(model, val_loader, epoch)
     scheduler.step(valid_loss)
-#    wandb.log({'learning_rate': get_lr(optimizer)})
+    print('Epoch: {:02d}, Train Loss: {:.4f}, Validation Loss: {:.4f}'.format(epoch, train_loss, valid_loss))
+    wandb.log({
+                'val_loss': valid_loss,
+                'train_loss': train_loss,
+                'learning_rate': get_lr(optimizer)
+              }, step=epoch)
