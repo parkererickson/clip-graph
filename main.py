@@ -5,23 +5,23 @@ import CLIPGraphModel as cgm
 import torch
 import wandb
 
-wandb.init(project="CLIP-Graph-Model", entity="parkererickson")
+wandb.init(project="CLIP-Graph-Model-Final", entity="parkererickson")
 
 config = wandb.config
-config.epochs = 400
-config.batch_size = 64 #96
-config.learning_rate = 5e-4
-config.image_model = "resnet"
-config.graph_model = "gcn"
-config.embedding_dim = 256
-config.graph_pool = "mean"
-config.graph_hidden_dim = 512
-config.graph_out_dim = 256
-config.linear_proj_dropout = 0.1
+config.epochs = 400           # CONSTANT
+config.batch_size = 48        # CONSTANT 
+config.learning_rate = 5e-4   # CONSTANT
+config.image_model = "resnet" # CONSTANT
+config.graph_model = "pn"
+config.embedding_dim = 256    # CONSTANT
+config.graph_pool = "max"     # CONSTANT
+config.graph_hidden_dim = 64  # CONSTANT
+config.graph_out_dim = 256    # CONSTANT
+config.linear_proj_dropout = 0.1  # CONSTANT
 config.pretrained_image_model = False
-config.lr_patience = 5
-config.T_0 = 10
-config.data_sample = "2014-05-14-13-59-05"
+config.lr_patience = 5        # CONSTANT
+config.T_0 = 10               # CONSTANT
+config.data_sample = "2014-07-14-14-49-50"
 #config.data_sample = "sample"
 
 data_sample = config.data_sample
@@ -62,7 +62,7 @@ def train(model, loader, optimizer, epoch):
         optimizer.step()
     return loss.item()
 
-def valid(model, loader, epoch):
+def valid(model, loader):
     model.eval()
     with torch.no_grad():
         for data in loader:
@@ -77,10 +77,16 @@ def get_lr(optimizer):
 
 optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=config.T_0)
+best_loss = float('inf')
 for epoch in range(config.epochs):
     train_loss = train(model, train_loader, optimizer, epoch)
-    valid_loss = valid(model, val_loader, epoch)
+    valid_loss = valid(model, val_loader)
     scheduler.step(valid_loss)
+    
+    if valid_loss < best_loss:
+        best_loss = valid_loss
+        torch.save(model.state_dict(), "./checkpoints/"+str(config.graph_model)+"_imagept_"+str(config.pretrained_image_model)+".pt")
+    
     print('Epoch: {:02d}, Train Loss: {:.4f}, Validation Loss: {:.4f}'.format(epoch, train_loss, valid_loss))
     wandb.log({
                 'val_loss': valid_loss,

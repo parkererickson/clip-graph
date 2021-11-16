@@ -8,7 +8,7 @@ class GAT(torch.nn.Module):
     def __init__(self, num_features=3, out_dim=512, num_hidden=1024, pool=global_mean_pool):
         super(GAT, self).__init__()
         self.hid = num_hidden
-        self.in_head = 8
+        self.in_head = 4
         self.out_head = 1
         self.outdim = out_dim
         self.pool = pool
