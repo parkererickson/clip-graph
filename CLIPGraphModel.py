@@ -101,11 +101,14 @@ class CLIPGraphModel(torch.nn.Module):
             image_output = self.image_model(images).flatten(start_dim=1).double()
             image_emb = self.image_projection(image_output)
 
+        image_emb = image_emb / image_emb.norm(dim=-1, keepdim=True)
+        graph_emb = graph_emb / graph_emb.norm(dim=-1, keepdim=True)
         logits = image_emb @ graph_emb.T
+        #out = F.softmax(logits, dim=-1)
         image_similarity = image_emb @ image_emb.T
         graph_similarity = graph_emb @ graph_emb.T
         target = F.softmax((image_similarity + graph_similarity)/2, dim=-1)
         graph_loss = cross_entropy(logits, target)
         image_loss = cross_entropy(logits.T, target.T)
         loss = (graph_loss + image_loss)/2
-        return loss.mean()
+        return loss.mean(), logits

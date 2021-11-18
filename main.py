@@ -12,7 +12,7 @@ config.epochs = 400           # CONSTANT
 config.batch_size = 48        # CONSTANT 
 config.learning_rate = 5e-4   # CONSTANT
 config.image_model = "resnet" # CONSTANT
-config.graph_model = "pn"
+config.graph_model = "gcn"
 config.embedding_dim = 256    # CONSTANT
 config.graph_pool = "max"     # CONSTANT
 config.graph_hidden_dim = 64  # CONSTANT
@@ -53,23 +53,56 @@ model.to(device)
 
 wandb.watch(model)
 
-def train(model, loader, optimizer, epoch):
+def eval(logits, thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]):
+    with torch.no_grad():
+        metrics = ["tp", "tn", "fp", "fn", "acc", "f1"]
+        results= {x:{k:None for k in metrics} for x in thresholds}
+        for threshold in thresholds:
+            for i in range(logits.shape[0]):
+                for j in range(i, logits.shape[1]):
+                    if i == j:  # On Diagonal (Valid pairs)
+                        tp = 0
+                        fn = 0
+                        if logits[i][i] > threshold:
+                            tp += 1
+                        else:
+                            fn += 1
+                    else:       # Off Diagonal (Invalid pairs)
+                        tn = 0
+                        fp = 0
+                        if logits[i][j] > threshold:
+                            fp += 1
+                        else:
+                            tn += 1
+            results[threshold]["tp"] = (tp/logits.shape[0])
+            results[threshold]["fn"] = (fn/logits.shape[0])
+            results[threshold]["tn"] = (tn/logits.shape[0])
+            results[threshold]["fp"] = (fp/logits.shape[0])
+            results[threshold]["acc"] = (tp+tn)/logits.shape[0]
+            results[threshold]["f1"] = tp/(tp+0.5*(fp+fn))
+        return results
+
+def train(model, loader, optimizer):
+    res = {}
     for data in loader:
         data.to(device)
         optimizer.zero_grad()
-        loss = model(data)
+        loss, out = model(data)
         loss.backward()
         optimizer.step()
-    return loss.item()
+        with torch.no_grad():
+            res = eval(out)
+    return loss.item(), res
 
 def valid(model, loader):
     model.eval()
     with torch.no_grad():
         for data in loader:
             data.to(device)
-            loss = model(data)
+            loss, out = model(data)
+        res = eval(out) 
     model.train()
-    return loss.item()
+    return loss.item(), res
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
@@ -79,17 +112,23 @@ optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=config.T_0)
 best_loss = float('inf')
 for epoch in range(config.epochs):
-    train_loss = train(model, train_loader, optimizer, epoch)
-    valid_loss = valid(model, val_loader)
+    train_loss, train_metrics = train(model, train_loader, optimizer)
+    valid_loss, valid_metrics = valid(model, val_loader)
     scheduler.step(valid_loss)
-    
+    '''
     if valid_loss < best_loss:
         best_loss = valid_loss
         torch.save(model.state_dict(), "./checkpoints/"+str(config.graph_model)+"_imagept_"+str(config.pretrained_image_model)+".pt")
-    
+    '''
+    metrics = ["tp", "tn", "fp", "fn", "acc", "f1"]
+    thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]
+    log = {}
+    for metric in metrics:
+        for threshold in thresholds:
+            log["train_"+metric+"_"+str(threshold)] = train_metrics[threshold][metric]
+            log["valid_"+metric+"_"+str(threshold)] = valid_metrics[threshold][metric]
+    log["val_loss"] = valid_loss
+    log["train_loss"] = train_loss
+    log["learning_rate"] = get_lr(optimizer)
     print('Epoch: {:02d}, Train Loss: {:.4f}, Validation Loss: {:.4f}'.format(epoch, train_loss, valid_loss))
-    wandb.log({
-                'val_loss': valid_loss,
-                'train_loss': train_loss,
-                'learning_rate': get_lr(optimizer)
-              }, step=epoch)
+    wandb.log(log, step=epoch)
