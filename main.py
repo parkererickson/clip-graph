@@ -25,18 +25,6 @@ def eval(logits, thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]):
             results[threshold]["f1"] = tp/(tp+0.5*(fp+fn))
         return results
 
-def train(model, loader, optimizer, device):
-    res = {}
-    for data in loader:
-        data.to(device)
-        optimizer.zero_grad()
-        loss, out = model(data)
-        loss.backward()
-        optimizer.step()
-        with torch.no_grad():
-            res = eval(out)
-    return loss.item(), res
-
 def valid(model, loader, device):
     model.eval()
     with torch.no_grad():
@@ -105,8 +93,25 @@ def main(args):
     scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=config.T_0)
     best_loss = float('inf')
     for epoch in range(config.epochs):
-        train_loss, train_metrics = train(model, train_loader, optimizer, device)
-        valid_loss, valid_metrics = valid(model, val_loader, device)
+        '''TRAINING STEP'''
+        for data in train_loader:
+            data.to(device)
+            optimizer.zero_grad()
+            loss, out = model(data)
+            loss.backward()
+            optimizer.step()
+            with torch.no_grad():
+                train_metrics = eval(out)
+        train_loss = loss.item()
+        '''VALIDATION STEP'''
+        model.eval()
+        with torch.no_grad():
+            for data in val_loader:
+                data.to(device)
+                loss, out = model(data)
+            valid_metrics = eval(out) 
+        model.train()
+        valid_loss = loss.item()
         scheduler.step(valid_loss)
         if valid_loss < best_loss:
             best_loss = valid_loss
