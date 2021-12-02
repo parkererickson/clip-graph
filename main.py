@@ -3,6 +3,7 @@ from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 import CLIPGraphModel as cgm
 import torch
+from torch import nn
 import wandb
 
 wandb.init(project="CLIP-Graph-Model-Final", entity="parkererickson")
@@ -15,8 +16,8 @@ config.image_model = "resnet" # CONSTANT
 config.graph_model = "gcn"
 config.embedding_dim = 256    # CONSTANT
 config.graph_pool = "max"     # CONSTANT
-config.graph_hidden_dim = 64  # CONSTANT
-config.graph_out_dim = 256    # CONSTANT
+config.graph_hidden_dim = 64 
+config.graph_out_dim = 256   
 config.linear_proj_dropout = 0.1  # CONSTANT
 config.pretrained_image_model = False
 config.lr_patience = 5        # CONSTANT
@@ -34,7 +35,7 @@ ds = dataset.GraphCLIP(lidar_timestamp_path='./data/'+data_sample+'/lms_front.ti
                        data_name=data_sample,
                        use_cache=True)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 train, val = torch.utils.data.random_split(ds, [int(0.8 * len(ds)), (len(ds)-int(0.8 * len(ds)))])
 train_loader = DataLoader(train, batch_size=config.batch_size, shuffle=True)
@@ -49,6 +50,9 @@ model = cgm.CLIPGraphModel(image_model=config.image_model,
                            linear_proj_dropout=config.linear_proj_dropout,
                            pretrained_image_model=config.pretrained_image_model)
 
+if torch.cuda.device_count() > 1:
+    model = nn.DataParallel(model)
+
 model.to(device)
 
 wandb.watch(model)
@@ -58,22 +62,11 @@ def eval(logits, thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]):
         metrics = ["tp", "tn", "fp", "fn", "acc", "f1"]
         results= {x:{k:None for k in metrics} for x in thresholds}
         for threshold in thresholds:
-            for i in range(logits.shape[0]):
-                for j in range(i, logits.shape[1]):
-                    if i == j:  # On Diagonal (Valid pairs)
-                        tp = 0
-                        fn = 0
-                        if logits[i][i] > threshold:
-                            tp += 1
-                        else:
-                            fn += 1
-                    else:       # Off Diagonal (Invalid pairs)
-                        tn = 0
-                        fp = 0
-                        if logits[i][j] > threshold:
-                            fp += 1
-                        else:
-                            tn += 1
+            threshLogits = (logits > threshold).astype('int')
+            tp = torch.trace(threshLogits)
+            fn = threshLogits.shape[0] - tp
+            fp = torch.triu(threshLogits, diagonal=1).sum()
+            tn = int((logits.shape[0]**2-logits.shape[0])/2) - fp
             results[threshold]["tp"] = (tp/logits.shape[0])
             results[threshold]["fn"] = (fn/logits.shape[0])
             results[threshold]["tn"] = (tn/logits.shape[0])
@@ -115,11 +108,10 @@ for epoch in range(config.epochs):
     train_loss, train_metrics = train(model, train_loader, optimizer)
     valid_loss, valid_metrics = valid(model, val_loader)
     scheduler.step(valid_loss)
-    '''
     if valid_loss < best_loss:
         best_loss = valid_loss
-        torch.save(model.state_dict(), "./checkpoints/"+str(config.graph_model)+"_imagept_"+str(config.pretrained_image_model)+".pt")
-    '''
+        torch.save(model.state_dict(), 
+                "./checkpoints/"+str(config.graph_model)+"_ghd_"+str(config.graph_hidden_dim)+"_go_"+str(config.graph_out_dim)+"_imagept_"+str(config.pretrained_image_model)+"_embdim_"+str(config.embedding_dim)+".pt")
     metrics = ["tp", "tn", "fp", "fn", "acc", "f1"]
     thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]
     log = {}
