@@ -116,7 +116,7 @@ def main(args):
         if valid_loss < best_loss:
             best_loss = valid_loss
             torch.save(model.state_dict(), 
-                    "./checkpoints/"+str(config.graph_model)+"_ghd_"+str(config.graph_hidden_dim)+"_go_"+str(config.graph_out_dim)+"_imagept_"+str(config.pretrained_image_model)+"_embdim_"+str(config.embedding_dim)+".pt")
+                    "./checkpoints/"+str(config.graph_model)+"_ghd_"+str(config.graph_hidden_dim)+"_go_"+str(config.graph_out_dim)+"_imagept_"+str(config.pretrained_image_model)+"_embdim_"+str(config.embedding_dim)+"_pool_"+str(config.graph_pool)+".pt")
         metrics = ["tp", "tn", "fp", "fn", "acc", "f1"]
         thresholds=[0.5, 0.75, 0.9, 0.95, 0.99]
         log = {}
