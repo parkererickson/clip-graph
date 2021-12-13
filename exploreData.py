@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 import open3d
 from robotcar_dataset_sdk.python.transform import build_se3_transform
 
-def infer(model_path, dataset):
+def infer(model_path, data_point):
     import torch
     import CLIPGraphModel as cgm
+    from torch_geometric.loader import DataLoader
     modelConfig = model_path.split('/')[-1].split('.')[0]
     model = cgm.CLIPGraphModel(image_model="resnet",
                             graph_model=modelConfig.split('_')[0],
@@ -17,15 +18,14 @@ def infer(model_path, dataset):
                             graph_out_dim=int(modelConfig.split('_')[4]),
                             linear_proj_dropout=0.1,
                             pretrained_image_model=bool(modelConfig.split('_')[-3]))
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=False)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     model.eval()
     similarities = []
-    for batch in dataloader:
-        print(batch)
+    loader = DataLoader([data_point], batch_size=1, shuffle=False)
+    for batch in loader:
         loss, out = model(batch)
-        similarities += [np.diagonal(out.detach().numpy())]
-    return out
+    similarities += [np.diagonal(out.detach().numpy())]
+    return out.item()
 
 def main(args):
     #data_sample = "2014-05-14-13-59-05"
@@ -45,7 +45,7 @@ def main(args):
     print("Number of Image/Point Cloud Pairs:", len(ds))
     if args.model_path is not None:
         sim = infer(args.model_path, ds[data_index])
-        print("Similarity Between Embeddings:", sim)
+        print("Similarity Between Embeddings: %.4f" % sim)
     img = np.rot90(ds[data_index]['image'].T, k=-1) # Reshape back to (H, W, C)
 
     plt.imshow(img)
