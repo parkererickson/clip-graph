@@ -2,6 +2,13 @@
 ### Parker Erickson
 ### CSCI 8980
 
+## Environment Setup
+It is recommended to run this code in a conda environment. Once that is setup, you can install the dependencies with the following command:
+```
+pip install -r requirements.txt
+```
+from the home directory of this repository. Sometimes the PyTorch Geometric package and its dependencies are not installed correctly, and are highly system-dependent. Google is your friend here.
+
 ## Running Inference
 You can run inference on a single image/point cloud pair using the ```exploreData.py``` script. The script takes three arguments:
 * ```--data_sample```: The name of the data you want to load. The data must be in the ```./data/``` directory. Defaults to ```sample```.
