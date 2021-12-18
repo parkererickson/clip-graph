@@ -12,8 +12,8 @@ def infer(model_path, data_point):
     modelConfig = model_path.split('/')[-1].split('.')[0]
     model = cgm.CLIPGraphModel(image_model="resnet",
                             graph_model=modelConfig.split('_')[0],
-                            embedding_dim=int(modelConfig.split('_')[-1]),
-                            graph_pool="mean",
+                            embedding_dim=int(modelConfig.split('_')[-3]),
+                            graph_pool=str(modelConfig.split('_')[-1]),
                             graph_hidden_dim=int(modelConfig.split('_')[2]),
                             graph_out_dim=int(modelConfig.split('_')[4]),
                             linear_proj_dropout=0.1,
