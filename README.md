@@ -20,7 +20,9 @@ An example of running the script is as follows:
 python exploreData.py -ds sample_small -di 3 -mp ./checkpoints/gat_ghd_128_go_128_imagept_True_embdim_256_pool_max.pt
 ```
 
-This will load the data sample ```sample_small``` and the model ```gat_ghd_128_go_128_imagept_True_embdim_256_pool_max.pt``` and run inference on the data sample ```sample_small[3]```. The similarity inferred by the model will be printed to the terminal, and the image and point cloud will be displayed. 
+This will load the data sample ```sample_small``` and the model ```gat_ghd_128_go_128_imagept_True_embdim_256_pool_max.pt``` and run inference on the data sample ```sample_small[3]```. The similarity inferred by the model will be printed to the terminal, and the image and point cloud will be displayed. It should look something like this:
+
+![./docs/outexample.png](./docs/outexample.png)
 
 **Note:** If the data has never been processed before (and doesn't show up in ```./processed/```), the script will process the data. This can take a while. Additionally, it will save the processed data to ```./processed/```, so you don't have to process it again. Sometimes after saving, the script will error, but the next time it is ran, it will use the processed data and work just fine.
 
