@@ -3,7 +3,7 @@
 ### CSCI 8980
 
 ## Environment Setup
-It is recommended to run this code in a conda environment. Once that is setup, you can install the dependencies with the following command:
+It is recommended to run this code in a conda environment, but it is not necessary. Once that is setup, you can install the dependencies with the following command:
 ```
 pip install -r requirements.txt
 ```
