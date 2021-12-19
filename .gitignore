@@ -6,3 +6,4 @@ wandb/
 .DS_Store
 processed/data.pt
 processed/sample_data.pt
+demo.mp4
